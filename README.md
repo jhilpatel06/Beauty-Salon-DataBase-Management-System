@@ -112,8 +112,8 @@ This phase involved translating the relational model into SQL scripts to create 
 - Composite keys were used in many-to-many relationships to preserve data integrity.
 
 📂 Refer:
-- DDLScript.txt
-- INSERTScript.txt
+- DDL_Script.sql
+- INSERT_Script.sql
 
 ---
 
@@ -144,8 +144,8 @@ Key focus areas:
 ├── Normalization.pdf
 ├── ERD.pdf
 ├── Relational_Model.pdf
-├── DDLScript.txt
-├── INSERTScript.txt
+├── DDL_Script.sql
+├── INSERT_Script.sql
 ├── DBMS_queries.txt
 ```
 
