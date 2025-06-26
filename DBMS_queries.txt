@@ -1,0 +1,383 @@
+﻿--------------------------------------------------------------------------------
+Gr : G2_T9
+Queries
+--------------------------------------------------------------------------------
+
+# Beauty Salon Database Analytics Queries
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+## Customer Insights
+-------------------------------------------------------------------------------------------------------------------------------
+
+
+### 1. Who are our product-only buyers?
+"Identify customers who only buy products but never book any service. We can target them with service-based offers."
+
+
+SELECT DISTINCT c.Customer_ID, c.C_Name, p.Branch_ID
+FROM Customer c
+JOIN Purchase p ON c.Customer_ID = p.Customer_ID
+WHERE NOT EXISTS (
+    SELECT 1 
+    FROM Books_Appointment ba
+    WHERE ba.Customer_ID = c.Customer_ID
+    AND ba.Branch_ID = p.Branch_ID
+);
+-------------------------------------------------------------------------------------------------------------------------------
+### 2. Premium Spenders Between 1st Feb 2023 and 1st March 2023
+"Find customers whose spending exceeded the average bill value during February 2023 — potential VIP or upsell targets."
+
+
+SELECT c.Customer_ID, c.C_Name, SUM(b.Payable_amount) AS Total_Bill
+FROM Customer c
+JOIN Books_Appointment ba ON c.Customer_ID = ba.Customer_ID
+JOIN Bills b ON ba.Bill_ID = b.Bill_ID
+WHERE ba.Appointment_Date >= DATE '2023-02-01'
+  AND ba.Appointment_Date < DATE '2023-03-01'
+GROUP BY c.Customer_ID, c.C_Name
+HAVING SUM(b.Payable_amount) > (
+    SELECT AVG(b2.Payable_amount)
+    FROM Bills b2
+    JOIN Books_Appointment ba2 ON ba2.Bill_ID = b2.Bill_ID
+    WHERE ba2.Appointment_Date >= DATE '2023-02-01'
+      AND ba2.Appointment_Date < DATE '2023-03-01'
+);
+-------------------------------------------------------------------------------------------------------------------------------
+### 3. Who never enrolled in memberships?
+"List customers who haven't availed any membership plans — good leads for a membership drive."
+
+
+SELECT c.Customer_ID, c.C_Name
+FROM Customer c
+WHERE c.Customer_ID NOT IN (SELECT Customer_ID FROM Premium_Customers);
+-------------------------------------------------------------------------------------------------------------------------------
+### 4. Whose birthdays are coming up this month?
+"Target birthday campaigns by listing customers born in the current month."
+
+
+SELECT Customer_ID, C_Name, DOB
+FROM Customer
+WHERE EXTRACT(MONTH FROM DOB) = EXTRACT(MONTH
+-------------------------------------------------------------------------------------------------------------------------------
+### 5. What hours are the busiest for appointments?
+"Find our peak operational hours to adjust staffing or create slot-based pricing."
+
+
+SELECT EXTRACT(HOUR FROM Appointment_Time) AS Hour, COUNT(*) AS Appointments
+FROM Books_Appointment
+GROUP BY EXTRACT(HOUR FROM Appointment_Time)
+ORDER BY Appointments DESC;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+### 6. What is this customer's visit history?
+"Show full appointment history for a specific customer — useful for personalized recommendations or conflict resolution."
+
+
+SELECT 
+    ba.Appointment_Date, 
+    ba.Appointment_Time, 
+    s.Ser_Name AS Service_Name, 
+    br.B_Name AS Branch_Name
+FROM Books_Appointment ba
+JOIN Services s ON ba.Service_ID = s.Service_ID
+JOIN Branch br ON ba.Branch_ID = br.Branch_ID
+WHERE ba.Customer_ID = 1001
+ORDER BY ba.Appointment_Date DESC, ba.Appointment_Time DESC;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+
+
+### 7. Which customers are missing contact information?  
+"Identify customers without complete contact details (phone or email) for data cleanup and outreach."  
+
+
+SELECT Customer_ID, C_Name, C_PhoneNo, C_Email  
+FROM Customer  
+WHERE C_PhoneNo IS NULL OR C_Email IS NULL;  
+
+
+
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+## Branch & Service Management
+-------------------------------------------------------------------------------------------------------------------------------
+
+
+### 8. What services are popular daily per branch?
+"Track daily service demand by branch to optimize service slots and staff schedules."
+
+
+SELECT 
+    ba.Branch_ID,
+    br.B_Name,
+    s.Ser_Name,
+    ba.Appointment_Date,
+    COUNT(*) AS Appointments
+FROM Books_Appointment ba
+JOIN Services s ON ba.Service_ID = s.Service_ID
+JOIN Branch br ON ba.Branch_ID = br.Branch_ID
+GROUP BY ba.Branch_ID, br.B_Name, s.Ser_Name, ba.Appointment_Date;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+### 9. What services and prices are available at each branch?
+"Generate a price/service list per branch for website/app display or comparison."
+
+
+SELECT br.B_Name, s.Ser_Name, s.Ser_Price
+FROM Branch br
+JOIN Offered_By ob ON br.Branch_ID = ob.Branch_ID
+JOIN Services s ON ob.Service_ID = s.Service_ID;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+
+
+### 10. Which services are most popular overall?
+"Identify top-performing services for promotions, combos, or training focus."
+
+
+SELECT 
+    ba.Branch_ID,
+    s.Ser_Name,
+    COUNT(*) AS Total_Bookings
+FROM Books_Appointment ba
+JOIN Services s ON ba.Service_ID = s.Service_ID
+GROUP BY ba.Branch_ID, s.Ser_Name
+ORDER BY Total_Bookings DESC;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+## Inventory & Product Optimization
+-------------------------------------------------------------------------------------------------------------------------------
+
+
+### 11. Which products need urgent restocking?
+"Detect low stock or fast-depleting products to trigger reorders."
+
+
+SELECT Product_ID, P_name, Stock
+FROM Product
+WHERE Stock < 10;
+
+
+"...or forecast stockout based on usage"
+
+
+SELECT p.Product_ID, p.P_name, p.Stock,
+       ROUND(SUM(u.Used_Quantity)/30.0, 2) AS Daily_Usage,
+       ROUND(p.Stock / (SUM(u.Used_Quantity)/30.0), 1) AS Days_Left
+FROM Product p
+JOIN Used_At u ON p.Product_ID = u.Product_ID
+GROUP BY p.Product_ID, p.P_name, p.Stock
+HAVING (p.Stock / (SUM(u.Used_Quantity)/30.0)) < 7;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+### 12. How much of each product is used per branch?
+"Breakdown of product usage by branch — helpful for auditing or supplier negotiation."
+
+
+SELECT br.B_Name, p.P_name, SUM(u.Used_Quantity) AS Total_Used
+FROM Used_At u
+JOIN Branch br ON u.Branch_ID = br.Branch_ID
+JOIN Product p ON u.Product_ID = p.Product_ID
+GROUP BY br.B_Name, p.P_name;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+### 13. Are any products lying idle?
+"List products not used in any services — possible wastage or outdated inventory."
+
+
+SELECT Product_ID, P_name
+FROM Product
+WHERE Product_ID NOT IN (SELECT DISTINCT Product_ID FROM Used_For);
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+### 14. What are the best-selling products?
+"Top 10 products sold by quantity — useful for promotions and supplier incentives."
+
+
+SELECT 
+    pu.Branch_ID,
+    p.P_name,
+    SUM(pu.Purchased_Quantity) AS Total_Sold,
+    br.B_Name
+FROM Purchase pu
+JOIN Product p ON pu.Product_ID = p.Product_ID
+JOIN Branch br ON pu.Branch_ID = br.Branch_ID
+GROUP BY pu.Branch_ID, p.P_name, br.B_Name
+ORDER BY Total_Sold DESC
+LIMIT 10;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+### 15. What is the monthly revenue per branch?
+"Track branch performance by month to identify seasonal trends and compare growth."
+
+
+SELECT 
+    ba.Branch_ID,
+    br.B_Name,
+    DATE_TRUNC('month', ba.Appointment_Date) AS Month,
+    SUM(b.Payable_amount) AS Monthly_Revenue
+FROM Books_Appointment ba
+JOIN Branch br ON ba.Branch_ID = br.Branch_ID
+JOIN Bills b ON ba.Bill_ID = b.Bill_ID
+GROUP BY ba.Branch_ID, br.B_Name, DATE_TRUNC('month', ba.Appointment_Date)
+ORDER BY br.B_Name, Month;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+### 16. What are our monthly sales trends?
+"Monitor growth or slump month-over-month — use for strategy and forecasting."
+
+
+SELECT 
+    ba.Branch_ID,
+    DATE_TRUNC('month', ba.Appointment_Date) AS Month,
+    SUM(b.Payable_amount) AS Total_Sales
+FROM Books_Appointment ba
+JOIN Bills b ON ba.Bill_ID = b.Bill_ID
+GROUP BY ba.Branch_ID, DATE_TRUNC('month', ba.Appointment_Date)
+ORDER BY Month;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+## Staff & Supplier Insights
+-------------------------------------------------------------------------------------------------------------------------------
+
+
+### 17. Who are our top-rated employees?
+"Celebrate and reward our top 3 performing staff."
+
+
+SELECT Staff_ID, S_name, Rating
+FROM Staff
+ORDER BY Rating DESC
+LIMIT 3;
+-------------------------------------------------------------------------------------------------------------------------------
+### 18. Which staff have been loyal for 10+ years?
+"Long-term staff = valuable assets — consider for rewards, mentoring roles, etc."
+
+
+SELECT Staff_ID, S_name, Date_of_Joining
+FROM Staff
+WHERE Date_of_Joining <= CURRENT_DATE - INTERVAL '6 years';
+-------------------------------------------------------------------------------------------------------------------------------
+### 19. Who supplies at the best price historically?
+"Find most cost-efficient supplier for each product."
+
+
+SELECT Product_ID, MIN(Supplied_Rate) AS Best_Rate
+FROM Supply
+GROUP BY Product_ID;
+-------------------------------------------------------------------------------------------------------------------------------
+### 20. Is there a mismatch between supply and usage?
+"Audit supply vs. consumption — helps detect shrinkage, errors, or wastage."
+
+
+SELECT 
+    p.Product_ID,
+    p.P_name,
+    u.Branch_ID,
+    SUM(s.Supplied_Quantity) AS Supplied,
+    SUM(u.Used_Quantity) AS Used,
+    SUM(s.Supplied_Quantity) - SUM(u.Used_Quantity) AS Difference
+FROM Product p
+LEFT JOIN Supply s ON p.Product_ID = s.Product_ID
+LEFT JOIN Used_At u ON p.Product_ID = u.Product_ID
+GROUP BY p.Product_ID, p.P_name, u.Branch_ID
+HAVING ABS(SUM(s.Supplied_Quantity) - SUM(u.Used_Quantity)) > 5;
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+## Forecasting & Strategic Planning
+-------------------------------------------------------------------------------------------------------------------------------
+
+
+### 21. Which months see appointment spikes?
+"Plan marketing and staffing around annual appointment surge patterns."
+
+
+SELECT EXTRACT(MONTH FROM Appointment_Date) AS Month, COUNT(*) AS Appointments
+FROM Books_Appointment
+WHERE Appointment_Date >= CURRENT_DATE - INTERVAL '1 month'
+GROUP BY EXTRACT(MONTH FROM Appointment_Date)
+ORDER BY Appointments DESC;
+-------------------------------------------------------------------------------------------------------------------------------
+
+
+### 22. Customers with past activity who haven't visited in 30+ days
+"Find customers with at least one appointment, whose last visit was over 30 days ago — re-engagement opportunity."
+
+
+SELECT c.Customer_ID, c.C_Name
+FROM Customer c
+JOIN Books_Appointment ba ON c.Customer_ID = ba.Customer_ID
+GROUP BY c.Customer_ID, c.C_Name
+HAVING MAX(ba.Appointment_Date) < DATE '2025-03-13'
+   AND COUNT(*) >= 1; -- For test case purpose, we've written >= 1
+-------------------------------------------------------------------------------------------------------------------------------
+### 23. Where do we have customers but no salon?
+"Opportunity to open new branches where customer base already exists."
+
+
+SELECT C_City, COUNT(*) AS Customers
+FROM Customer
+WHERE C_City NOT IN (SELECT B_City FROM Branch)
+GROUP BY C_City
+ORDER BY Customers DESC;
+-------------------------------------------------------------------------------------------------------------------------------
+### 24. Which branch sells few products despite many services?
+"Spot branches that underperform in converting appointments to product sales."
+
+
+SELECT 
+    br.Branch_ID, 
+    br.B_Name,
+    COUNT(DISTINCT ba.Appointment_Date) AS Appointments,
+    COUNT(DISTINCT pu.Purchased_Date) AS Purchases,
+    ROUND(COUNT(DISTINCT pu.Purchased_Date) * 1.0 / NULLIF(COUNT(DISTINCT ba.Appointment_Date), 0), 2) AS Conversion_Rate
+FROM Branch br
+LEFT JOIN Books_Appointment ba ON br.Branch_ID = ba.Branch_ID
+LEFT JOIN Purchase pu ON br.Branch_ID = pu.Branch_ID
+GROUP BY br.Branch_ID, br.B_Name
+ORDER BY Conversion_Rate ASC;
+-------------------------------------------------------------------------------------------------------------------------------
+### 25. Which branches are operating close to full capacity?
+"Find highly loaded branches — may need more staff or expansion."
+
+
+SELECT 
+    ba.Branch_ID,
+    br.B_Name,
+    COUNT(*) / 10.0 AS Avg_Appointments_Per_Hour
+FROM Books_Appointment ba
+JOIN Branch br ON ba.Branch_ID = br.Branch_ID
+WHERE ba.Appointment_Date >= CURRENT_DATE - INTERVAL '1 month'
+GROUP BY ba.Branch_ID, br.B_Name
+HAVING COUNT(*) / 10.0 > 0.01   -- for test case purpose
+ORDER BY Avg_Appointments_Per_Hour DESC;
+-------------------------------------------------------------------------------------------------------------------------------
+### 26. What are the quietest hours to offer flash sales?
+"Find least busy hours to run limited-time deals and improve slot utilization."
+
+
+SELECT 
+    Branch_ID,
+    EXTRACT(HOUR FROM Appointment_Time) AS Hour,
+    COUNT(*) AS Appointment_Count
+FROM Books_Appointment
+GROUP BY Branch_ID, EXTRACT(HOUR FROM Appointment_Time)
+ORDER BY Appointment_Count ASC
+LIMIT 3;

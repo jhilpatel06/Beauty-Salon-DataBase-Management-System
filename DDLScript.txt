@@ -1,0 +1,197 @@
+--------------------------------------------------------------------------------
+Gr : G2_T9
+DDL Script
+--------------------------------------------------------------------------------
+
+CREATE SCHEMA DBMS_PROJECT;
+SET SEARCH_PATH TO DBMS_PROJECT;
+
+CREATE TABLE Services (
+    Service_ID INT PRIMARY KEY,
+    Ser_Price DECIMAL(10, 2) CHECK (Ser_Price >= 0),
+    Ser_Name VARCHAR(100),
+    Category VARCHAR(50)
+);
+
+CREATE TABLE Membership (
+    M_name VARCHAR(50) PRIMARY KEY,
+    Duration INT CHECK (Duration > 0), -- in months
+    M_Price DECIMAL(10, 2) CHECK (M_Price >= 0),
+    Discount_rate DECIMAL(5, 2) CHECK (Discount_rate >=0 AND Discount_rate <=100)
+);
+
+CREATE TABLE Branch (
+    Branch_ID INT PRIMARY KEY,
+    B_Name VARCHAR(100),
+    B_Street VARCHAR(100),
+    B_City VARCHAR(50),
+    B_PIN VARCHAR(10)
+);
+
+CREATE TABLE Offered_By (
+    Branch_ID INT,
+    Service_ID INT,
+    PRIMARY KEY (Branch_ID, Service_ID),
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Service_ID) REFERENCES Services(Service_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Supplier (
+    Supplier_ID INT PRIMARY KEY,
+    Supp_Name VARCHAR(100),
+    Supp_PhoneNo VARCHAR(15),
+    Supp_Email VARCHAR(100)
+);
+
+CREATE TABLE Customer (
+    Customer_ID INT PRIMARY KEY,
+    C_Name VARCHAR(100) NOT NULL,
+    C_PhoneNo VARCHAR(15),
+    C_Email VARCHAR(100),
+    DOB DATE,
+    Gender VARCHAR(15) CHECK (Gender IN ('Male', 'Female', 'Other')),
+    C_PIN VARCHAR(10),
+    C_Street VARCHAR(100),
+    C_City VARCHAR(50)
+);
+
+CREATE TABLE Premium_Customers (
+    Customer_ID INT,
+    M_name VARCHAR(50),
+    Membership_Validity DATE,
+    PRIMARY KEY (Customer_ID, M_name),
+    FOREIGN KEY (Customer_ID) REFERENCES Customer(Customer_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (M_name) REFERENCES Membership(M_name)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Administrator (
+    A_ID INT PRIMARY KEY,
+    Branch_ID INT,
+    A_Name VARCHAR(100) NOT NULL,
+    A_PhoneNo VARCHAR(15),
+    A_Email VARCHAR(100),
+    A_Salary DECIMAL(10, 2) CHECK (A_Salary >= 0),
+    A_Role VARCHAR(50),
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+    ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Product (
+    Product_ID INT PRIMARY KEY,
+    P_name VARCHAR(100) NOT NULL,
+    SellingPrice DECIMAL(10, 2) CHECK (SellingPrice >= 0),
+    Stock INT CHECK (Stock >= 0),
+    BrandName VARCHAR(50),
+    Supplier_ID INT,
+    FOREIGN KEY (Supplier_ID) REFERENCES Supplier(Supplier_ID)
+        ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE TABLE Staff (
+    Staff_ID INT PRIMARY KEY,
+    S_name VARCHAR(100) NOT NULL,
+    S_PhoneNo VARCHAR(15),
+    S_Email VARCHAR(100),
+    Availability VARCHAR(50),
+    Rating INT CHECK (Rating BETWEEN 0 AND 6),
+    S_Salary DECIMAL(10, 2) CHECK (S_Salary >= 0),
+    Date_of_Joining DATE,
+    Supervisor_ID INT,
+    Branch_ID INT,
+    FOREIGN KEY (Supervisor_ID) REFERENCES Staff(Staff_ID)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Provides (
+    Service_ID INT,
+    Staff_ID INT,
+    PRIMARY KEY (Service_ID, Staff_ID),
+    FOREIGN KEY (Service_ID) REFERENCES Services(Service_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Staff_ID) REFERENCES Staff(Staff_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Bills (
+    Bill_ID INT PRIMARY KEY,
+    Amount DECIMAL(10, 2) CHECK (Amount >= 0),
+    Discount DECIMAL(5, 2) CHECK (Discount >=0 AND Discount <=100),
+    Payable_amount DECIMAL(10, 2) CHECK (Payable_amount >= 0),
+    Payment_mode VARCHAR(30)
+);
+
+CREATE TABLE Used_For (
+    Service_ID INT,
+    Product_ID INT,
+    PRIMARY KEY (Service_ID, Product_ID),
+    FOREIGN KEY (Service_ID) REFERENCES Services(Service_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Purchase (
+    Customer_ID INT,
+    Product_ID INT,
+    Purchased_Date DATE,
+    Purchased_Quantity INT CHECK (Purchased_Quantity > 0),
+    Bill_ID INT,
+	Branch_ID INT,
+    PRIMARY KEY (Customer_ID, Product_ID, Purchased_Date, Branch_ID),
+    FOREIGN KEY (Customer_ID) REFERENCES Customer(Customer_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Bill_ID) REFERENCES Bills(Bill_ID)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+	FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID) 
+		ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Books_Appointment (
+    Customer_ID INT,
+    Service_ID INT,
+    Appointment_Date DATE,
+    Appointment_Time TIME,
+    Bill_ID INT,
+	Branch_ID INT,
+    PRIMARY KEY (Customer_ID, Service_ID, Appointment_Date, Branch_ID),
+    FOREIGN KEY (Customer_ID) REFERENCES Customer(Customer_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Service_ID) REFERENCES Services(Service_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Bill_ID) REFERENCES Bills(Bill_ID)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+	FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID) 
+		ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Used_At (
+    Product_ID INT,
+    Branch_ID INT,
+    Used_Quantity INT CHECK (Used_Quantity >= 0),
+    PRIMARY KEY (Product_ID, Branch_ID),
+    FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Branch_ID) REFERENCES Branch(Branch_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE Supply (
+    Supplier_ID INT,
+    Product_ID INT,
+    Supplied_Date DATE,
+    Supplied_Rate DECIMAL(10, 2) CHECK (Supplied_Rate > 0),
+    Supplied_Quantity INT CHECK (Supplied_Quantity > 0),
+    PRIMARY KEY (Supplier_ID, Product_ID, Supplied_Date),
+    FOREIGN KEY (Supplier_ID) REFERENCES Supplier(Supplier_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
